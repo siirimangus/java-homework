@@ -76,3 +76,10 @@ These are not required for the core task, but they can earn additional credit if
 
 - adding a update endpoint for notifications
 - introducing a proper blacklist functionality to enforcement flow for blocked recipients
+
+## Design notes
+
+- **Blacklist and rate limit** are enforced by `RecipientPolicy` before delivery. Refused attempts are stored as `REJECTED` rows with the blocked flag set (an audit trail), and are not counted towards the rate limit, so being refused never extends a lockout.
+- **Recipient matching is case-insensitive only for `EMAIL`** targets, in both the blacklist and the rate limit. SMS numbers and push tokens are matched exactly, since tokens can be case-sensitive. Blacklist entries are stored as entered (trimmed), so two entries differing only in case can coexist; an email request matches either.
+- **Known trade-off:** the rate limit counts rows and then inserts, which is not atomic. A burst of concurrent requests for one recipient can slightly exceed the limit. Making it strict would need a per-recipient lock or a counter row; this was left out to keep the solution proportional.
+- **Logs mask recipients** (`b***@example.com`) so personal data is not written to them.

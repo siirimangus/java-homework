@@ -1,6 +1,7 @@
 package com.example.homework.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
@@ -12,6 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.example.homework.dto.NotificationResponse;
+import com.example.homework.exception.RecipientRateLimitedException;
 import com.example.homework.model.NotificationStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,9 @@ public class NotificationServiceIntegrationTest {
   @Autowired
   private NotificationService service;
 
+  @Autowired
+  private BlacklistService blacklistService;
+
   @Test
   void emailSuccessIsStoredAsSent() throws Exception {
     NotificationResponse response = service.processNotification("EMAIL", "buyer@example.com", "hello");
@@ -36,17 +41,21 @@ public class NotificationServiceIntegrationTest {
   }
 
   @Test
-  void blockedTargetFailsBeforeDispatchIsInserted() {
+  void blacklistedTargetIsRecordedAsRejectedAndBlocked() {
+    blacklistService.add("blocked-user@example.com", "test");
     try {
       service.processNotification("SMS", "blocked-user@example.com", "hello");
       fail("Expected blocked target to fail");
     } catch (RuntimeException ex) {
-      assertThat(ex.getMessage()).isEqualTo("Business Rule Violation: User is blacklisted or rate-limited by DB policy.");
+      assertThat(ex.getMessage()).isEqualTo("Recipient is blacklisted.");
     } catch (Exception ex) {
       fail("Expected RuntimeException but got: " + ex.getClass().getName());
     }
 
-    assertThat(service.getHistory()).isEmpty();
+    NotificationResponse latest = service.getLatestState();
+    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
+    assertThat(latest.isBlocked()).isTrue();
+    assertThat(latest.getMessage()).isEqualTo("Recipient is blacklisted.");
   }
 
   @Test
@@ -89,6 +98,56 @@ public class NotificationServiceIntegrationTest {
     assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
     assertThat(latest.getFailureCount()).isEqualTo(3);
     assertThat(latest.getDispatchCount()).isEqualTo(4);
+  }
+
+  @Test
+  void recipientIsRateLimitedAfterTooManyNotifications() {
+    for (int i = 0; i < 3; i++) {
+      service.processNotification("SMS", "busy@example.com", "hello");
+    }
+
+    assertThatThrownBy(() -> service.processNotification("SMS", "busy@example.com", "hello"))
+        .isInstanceOf(RecipientRateLimitedException.class);
+    assertThat(service.processNotification("SMS", "other@example.com", "hello").getStatus())
+        .isEqualTo(NotificationStatus.SENT);
+  }
+
+  @Test
+  void emailRateLimitIgnoresRecipientCase() {
+    for (int i = 0; i < 3; i++) {
+      service.processNotification("EMAIL", i % 2 == 0 ? "Busy@Example.com" : "busy@example.com", "hello");
+    }
+
+    assertThatThrownBy(() -> service.processNotification("EMAIL", "BUSY@example.com", "hello"))
+        .isInstanceOf(RecipientRateLimitedException.class);
+  }
+
+  @Test
+  void nonEmailRateLimitIsCaseSensitive() {
+    for (int i = 0; i < 3; i++) {
+      service.processNotification("PUSH", "Token-AbC", "hello");
+    }
+
+    assertThat(service.processNotification("PUSH", "token-abc", "hello").getStatus())
+        .isEqualTo(NotificationStatus.SENT);
+    assertThatThrownBy(() -> service.processNotification("PUSH", "Token-AbC", "hello"))
+        .isInstanceOf(RecipientRateLimitedException.class);
+  }
+
+  @Test
+  void rejectedAttemptsDoNotCountTowardsTheRateLimit() {
+    for (int i = 0; i < 3; i++) {
+      service.processNotification("SMS", "busy@example.com", "hello");
+    }
+    for (int i = 0; i < 5; i++) {
+      assertThatThrownBy(() -> service.processNotification("SMS", "busy@example.com", "hello"))
+          .isInstanceOf(RecipientRateLimitedException.class);
+    }
+
+    NotificationResponse latest = service.getLatestState();
+    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
+    assertThat(latest.isBlocked()).isTrue();
+    assertThat(service.getHistory()).hasSize(8);
   }
 
   @Test

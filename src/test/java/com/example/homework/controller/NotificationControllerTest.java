@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import com.example.homework.service.BlacklistService;
 import com.example.homework.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -25,6 +26,9 @@ class NotificationControllerTest {
 
   @Autowired
   private NotificationService service;
+
+  @Autowired
+  private BlacklistService blacklistService;
 
   @Test
   void successfulSendReturnsOk() throws Exception {
@@ -63,9 +67,21 @@ class NotificationControllerTest {
   }
 
   @Test
-  void blockedRecipientReturnsForbidden() throws Exception {
+  void blacklistedRecipientReturnsForbidden() throws Exception {
+    blacklistService.add("blocked-user@example.com", "test");
+
     send("SMS", "blocked-user@example.com")
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void rateLimitedRecipientReturnsTooManyRequests() throws Exception {
+    for (int i = 0; i < 3; i++) {
+      send("SMS", "busy@example.com").andExpect(status().isOk());
+    }
+
+    send("SMS", "busy@example.com")
+        .andExpect(status().isTooManyRequests());
   }
 
   @Test

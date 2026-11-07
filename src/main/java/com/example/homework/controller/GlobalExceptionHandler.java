@@ -2,12 +2,16 @@ package com.example.homework.controller;
 
 import java.util.stream.Collectors;
 
+import com.example.homework.exception.BlacklistEntryAlreadyExistsException;
+import com.example.homework.exception.BlacklistEntryNotFoundException;
 import com.example.homework.exception.CircuitBreakerOpenException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
+import com.example.homework.exception.NotificationException;
 import com.example.homework.exception.NotificationNotFoundException;
 import com.example.homework.exception.NotificationNotUpdatableException;
 import com.example.homework.exception.RecipientBlockedException;
+import com.example.homework.exception.RecipientRateLimitedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,19 +52,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
   }
 
-  @ExceptionHandler(NotificationNotFoundException.class)
-  public ProblemDetail handleNotFound(NotificationNotFoundException ex) {
+  @ExceptionHandler({NotificationNotFoundException.class, BlacklistEntryNotFoundException.class})
+  public ProblemDetail handleNotFound(NotificationException ex) {
     return problem(HttpStatus.NOT_FOUND, ex.getMessage());
   }
 
-  @ExceptionHandler(NotificationNotUpdatableException.class)
-  public ProblemDetail handleNotUpdatable(NotificationNotUpdatableException ex) {
+  @ExceptionHandler({NotificationNotUpdatableException.class, BlacklistEntryAlreadyExistsException.class})
+  public ProblemDetail handleConflict(NotificationException ex) {
     return problem(HttpStatus.CONFLICT, ex.getMessage());
   }
 
   @ExceptionHandler(RecipientBlockedException.class)
   public ProblemDetail handleRecipientBlocked(RecipientBlockedException ex) {
     return problem(HttpStatus.FORBIDDEN, ex.getMessage());
+  }
+
+  @ExceptionHandler(RecipientRateLimitedException.class)
+  public ProblemDetail handleRateLimited(RecipientRateLimitedException ex) {
+    return problem(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
   }
 
   @ExceptionHandler(CircuitBreakerOpenException.class)

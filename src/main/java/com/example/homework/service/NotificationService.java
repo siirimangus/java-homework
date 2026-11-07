@@ -9,13 +9,16 @@ import com.example.homework.dto.NotificationUpdateRequest;
 import com.example.homework.exception.CircuitBreakerOpenException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
+import com.example.homework.exception.NotificationException;
 import com.example.homework.exception.NotificationNotFoundException;
 import com.example.homework.exception.NotificationNotUpdatableException;
 import com.example.homework.exception.RecipientBlockedException;
+import com.example.homework.exception.RecipientRateLimitedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import com.example.homework.handler.NotificationHandler;
 import com.example.homework.model.NotificationType;
 import com.example.homework.repository.NotificationRepository;
+import com.example.homework.util.TargetMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ public class NotificationService {
   private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
   private final NotificationRepository repository;
+  private final RecipientPolicy recipientPolicy;
   private final NotificationCircuitBreaker circuitBreaker;
   private final TransactionTemplate transactionTemplate;
   private final Map<NotificationType, NotificationHandler> handlers = new EnumMap<>(NotificationType.class);
@@ -34,9 +38,11 @@ public class NotificationService {
   public NotificationService(
       NotificationRepository repository,
       List<NotificationHandler> handlers,
+      RecipientPolicy recipientPolicy,
       NotificationCircuitBreaker circuitBreaker,
       TransactionTemplate transactionTemplate) {
     this.repository = repository;
+    this.recipientPolicy = recipientPolicy;
     this.circuitBreaker = circuitBreaker;
     this.transactionTemplate = transactionTemplate;
     for (NotificationHandler handler : handlers) {
@@ -62,6 +68,10 @@ public class NotificationService {
     Dispatch dispatch = transactionTemplate.execute(status -> admit(safeType, safeTarget, safePayload));
 
     // Rejections are thrown after the admission transaction has committed so the row is kept.
+    if (dispatch.rejection() != null) {
+      log.warn("Dispatch {} rejected: {}", dispatch.id(), dispatch.rejection().getMessage());
+      throw dispatch.rejection();
+    }
     if (dispatch.circuitOpen()) {
       repository.markAsSkipped(dispatch.id(), "Circuit breaker OPEN via database state.");
       log.warn("Dispatch {} skipped: circuit breaker is open", dispatch.id());
@@ -78,11 +88,11 @@ public class NotificationService {
     try {
       handler.execute(safeTarget, safePayload);
       repository.resetDatabaseFailures(dispatch.id());
-      log.info("Dispatch {} sent ({} to {})", dispatch.id(), safeType, safeTarget);
+      log.info("Dispatch {} sent ({} to {})", dispatch.id(), safeType, TargetMasker.mask(safeTarget));
       return repository.getDispatchById(dispatch.id());
     } catch (Exception e) {
       repository.recordDatabaseFailure(dispatch.id(), e.getMessage());
-      log.warn("Dispatch {} failed ({} to {})", dispatch.id(), safeType, safeTarget, e);
+      log.warn("Dispatch {} failed ({} to {})", dispatch.id(), safeType, TargetMasker.mask(safeTarget), e);
       throw new NotificationDeliveryException(e.getMessage(), e);
     }
   }
@@ -119,16 +129,22 @@ public class NotificationService {
     return repository.getLatestState();
   }
 
-  /** Runs inside a transaction: enforces the recipient policy, records the new dispatch and samples the breaker. */
+  /**
+   * Runs inside a transaction: records the new dispatch, enforces the recipient policy and samples
+   * the breaker. A refused recipient is still recorded (as rejected and blocked) for auditing.
+   */
   private Dispatch admit(String type, String target, String payload) {
-    if (repository.isUserBlacklistedOrRateLimited(target)) {
-      log.warn("Rejected notification to {}: recipient is blocked or rate-limited", target);
-      throw new RecipientBlockedException("Business Rule Violation: User is blacklisted or rate-limited by DB policy.");
+    try {
+      recipientPolicy.enforce(type, target);
+    } catch (RecipientBlockedException | RecipientRateLimitedException e) {
+      long id = repository.openDispatch(type, target, payload);
+      repository.markAsBlocked(id, e.getMessage());
+      return new Dispatch(id, false, e);
     }
     long id = repository.openDispatch(type, target, payload);
-    return new Dispatch(id, circuitBreaker.isOpen());
+    return new Dispatch(id, circuitBreaker.isOpen(), null);
   }
 
-  private record Dispatch(long id, boolean circuitOpen) {
+  private record Dispatch(long id, boolean circuitOpen, NotificationException rejection) {
   }
 }

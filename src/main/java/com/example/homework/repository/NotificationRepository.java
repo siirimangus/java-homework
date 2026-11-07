@@ -3,6 +3,7 @@ package com.example.homework.repository;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,20 +30,21 @@ public class NotificationRepository {
     this.clock = clock;
   }
 
-  public boolean isUserBlacklistedOrRateLimited(String target) {
-    if (target != null && target.toLowerCase().contains("blocked")) {
-      return true;
-    }
-
-    Integer recentCount = jdbcTemplate.queryForObject(
-        "select count(*) "
-            + "from ntf_tx "
-            + "where tgt = ? "
-            + "  and crt >= dateadd('minute', -1, current_timestamp)",
+  /**
+   * Number of dispatches accepted for the recipient since the given instant. Rejected rows are not
+   * counted, so being rejected does not extend a rate limit.
+   *
+   * @param ignoreCase true for targets that are case-insensitive, such as email addresses
+   */
+  public int countDispatchesSince(String target, boolean ignoreCase, Instant since) {
+    String condition = ignoreCase ? "lower(tgt) = lower(?)" : "tgt = ?";
+    Integer count = jdbcTemplate.queryForObject(
+        "select count(*) from ntf_tx where " + condition + " and crt >= ? and st <> ?",
         Integer.class,
-        target);
-
-    return recentCount != null && recentCount >= 3;
+        target,
+        Timestamp.from(since),
+        NotificationStatus.REJECTED.getCode());
+    return count == null ? 0 : count;
   }
 
   /**
@@ -50,7 +52,6 @@ public class NotificationRepository {
    * derived inside the single insert statement, so no read-then-write happens in application code.
    */
   public long openDispatch(String type, String target, String payload) {
-    String blocked = (target != null && target.toLowerCase().contains("blocked")) ? "Y" : "N";
     Timestamp now = Timestamp.from(clock.instant());
     KeyHolder keyHolder = new GeneratedKeyHolder();
 
@@ -66,7 +67,7 @@ public class NotificationRepository {
       statement.setString(2, target);
       statement.setString(3, payload);
       statement.setString(4, NotificationStatus.NEW.getCode());
-      statement.setString(5, blocked);
+      statement.setString(5, "N");
       statement.setString(6, "START");
       statement.setTimestamp(7, now);
       statement.setTimestamp(8, now);
@@ -109,6 +110,13 @@ public class NotificationRepository {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
         NotificationStatus.REJECTED.getCode(), shorten(message), Timestamp.from(clock.instant()), id);
+  }
+
+  /** Marks a dispatch as refused because its recipient is blacklisted or rate-limited. */
+  public void markAsBlocked(long id, String message) {
+    jdbcTemplate.update(
+        "update ntf_tx set st = ?, bl = ?, lm = ?, upd = ? where id = ?",
+        NotificationStatus.REJECTED.getCode(), "Y", shorten(message), Timestamp.from(clock.instant()), id);
   }
 
   public NotificationResponse getLatestState() {
