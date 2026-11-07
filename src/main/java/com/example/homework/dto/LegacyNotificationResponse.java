@@ -2,16 +2,18 @@ package com.example.homework.dto;
 
 import java.sql.Timestamp;
 
+import com.example.homework.model.NotificationStatus;
+
 public class LegacyNotificationResponse {
 
   private long id;
   private String type;
   private String target;
   private String payload;
-  private String status;
+  private NotificationStatus status;
   private int failureCount;
   private int dispatchCount;
-  private String blocked;
+  private boolean blocked;
   private String message;
   private Timestamp createdAt;
   private Timestamp updatedAt;
@@ -48,11 +50,11 @@ public class LegacyNotificationResponse {
     this.payload = payload;
   }
 
-  public String getStatus() {
+  public NotificationStatus getStatus() {
     return status;
   }
 
-  public void setStatus(String status) {
+  public void setStatus(NotificationStatus status) {
     this.status = status;
   }
 
@@ -72,11 +74,11 @@ public class LegacyNotificationResponse {
     this.dispatchCount = dispatchCount;
   }
 
-  public String getBlocked() {
+  public boolean isBlocked() {
     return blocked;
   }
 
-  public void setBlocked(String blocked) {
+  public void setBlocked(boolean blocked) {
     this.blocked = blocked;
   }
 

@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.example.homework.dto.LegacyNotificationResponse;
 import com.example.homework.mapper.NotificationRowMapper;
+import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -45,7 +46,7 @@ public class NotificationRepository {
     jdbcTemplate.update(
         "insert into ntf_tx(id, tp, tgt, pld, st, fc, dc, bl, lm, crt, upd) "
             + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        id, type, target, payload, "N", currentFailureCount, nextDispatchCount, blocked, "START", now, now);
+        id, type, target, payload, NotificationStatus.NEW.getCode(), currentFailureCount, nextDispatchCount, blocked, "START", now, now);
 
     return id;
   }
@@ -61,26 +62,26 @@ public class NotificationRepository {
     int nextFailureCount = getFailureCountFromDatabase() + 1;
     jdbcTemplate.update(
         "update ntf_tx set st = ?, fc = ?, lm = ?, upd = ? where id = ?",
-        "E", nextFailureCount, shorten(error), new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.ERROR.getCode(), nextFailureCount, shorten(error), new Timestamp(System.currentTimeMillis()), id);
     System.out.println("[DB AUDIT] Inserted failure record for " + target + ": " + error);
   }
 
   public void resetDatabaseFailures(long id) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, fc = ?, lm = ?, upd = ? where id = ?",
-        "S", 0, "SENT", new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.SENT.getCode(), 0, "SENT", new Timestamp(System.currentTimeMillis()), id);
   }
 
   public void recordUnsupportedType(long id, String type) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
-        "U", shorten("Unsupported type: " + type), new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.UNKNOWN.getCode(), shorten("Unsupported type: " + type), new Timestamp(System.currentTimeMillis()), id);
   }
 
   public void markAsSkipped(long id, String message) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
-        "R", shorten(message), new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.REJECTED.getCode(), shorten(message), new Timestamp(System.currentTimeMillis()), id);
   }
 
   public LegacyNotificationResponse getLatestState() {

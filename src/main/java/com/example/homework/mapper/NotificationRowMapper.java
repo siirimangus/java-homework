@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import com.example.homework.dto.LegacyNotificationResponse;
+import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 
@@ -17,10 +18,10 @@ public class NotificationRowMapper implements RowMapper<LegacyNotificationRespon
     response.setType(rs.getString("tp"));
     response.setTarget(rs.getString("tgt"));
     response.setPayload(rs.getString("pld"));
-    response.setStatus(rs.getString("st"));
+    response.setStatus(NotificationStatus.fromCode(rs.getString("st")));
     response.setFailureCount(rs.getInt("fc"));
     response.setDispatchCount(rs.getInt("dc"));
-    response.setBlocked("Y".equals(rs.getString("bl")) ? "Y" : "N");
+    response.setBlocked("Y".equals(rs.getString("bl")));
     response.setMessage(rs.getString("lm"));
 
     response.setCreatedAt(rs.getTimestamp("crt"));

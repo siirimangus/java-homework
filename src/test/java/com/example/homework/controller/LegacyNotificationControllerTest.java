@@ -25,7 +25,7 @@ class LegacyNotificationControllerTest {
   void successfulSendReturnsOk() throws Exception {
     send("EMAIL", "buyer@example.com")
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("S"));
+        .andExpect(jsonPath("$.status").value("SENT"));
   }
 
   @Test

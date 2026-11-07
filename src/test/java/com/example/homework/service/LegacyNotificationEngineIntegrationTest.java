@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.example.homework.dto.LegacyNotificationResponse;
+import com.example.homework.model.NotificationStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,7 +21,7 @@ public class LegacyNotificationEngineIntegrationTest {
   void emailSuccessIsStoredAsSent() throws Exception {
     LegacyNotificationResponse response = engine.processNotification("EMAIL", "buyer@example.com", "hello");
 
-    assertThat(response.getStatus()).isEqualTo("S");
+    assertThat(response.getStatus()).isEqualTo(NotificationStatus.SENT);
     assertThat(response.getDispatchCount()).isEqualTo(1);
     assertThat(response.getFailureCount()).isZero();
     assertThat(engine.getHistory()).hasSize(1);
@@ -50,7 +51,7 @@ public class LegacyNotificationEngineIntegrationTest {
     }
 
     LegacyNotificationResponse latest = engine.getLatestState();
-    assertThat(latest.getStatus()).isEqualTo("U");
+    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.UNKNOWN);
     assertThat(latest.getMessage()).isEqualTo("Unsupported type: FAX");
   }
 
@@ -77,7 +78,7 @@ public class LegacyNotificationEngineIntegrationTest {
     }
 
     LegacyNotificationResponse latest = engine.getLatestState();
-    assertThat(latest.getStatus()).isEqualTo("R");
+    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
     assertThat(latest.getFailureCount()).isEqualTo(3);
     assertThat(latest.getDispatchCount()).isEqualTo(4);
   }
