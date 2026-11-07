@@ -58,12 +58,11 @@ public class NotificationRepository {
     return results.isEmpty() ? 0 : results.get(0);
   }
 
-  public void recordDatabaseFailure(long id, String target, String error) {
+  public void recordDatabaseFailure(long id, String error) {
     int nextFailureCount = getFailureCountFromDatabase() + 1;
     jdbcTemplate.update(
         "update ntf_tx set st = ?, fc = ?, lm = ?, upd = ? where id = ?",
         NotificationStatus.ERROR.getCode(), nextFailureCount, shorten(error), new Timestamp(System.currentTimeMillis()), id);
-    System.out.println("[DB AUDIT] Inserted failure record for " + target + ": " + error);
   }
 
   public void resetDatabaseFailures(long id) {

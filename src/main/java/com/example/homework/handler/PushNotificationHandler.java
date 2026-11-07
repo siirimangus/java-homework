@@ -1,10 +1,14 @@
 package com.example.homework.handler;
 
 import com.example.homework.model.NotificationType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class PushNotificationHandler implements NotificationHandler {
+
+  private static final Logger log = LoggerFactory.getLogger(PushNotificationHandler.class);
 
   @Override
   public NotificationType getType() {
@@ -13,6 +17,6 @@ public class PushNotificationHandler implements NotificationHandler {
 
   @Override
   public void execute(String target, String payload) {
-    System.out.println("[PUSH] " + target + " -> " + payload);
+    log.info("Sending PUSH notification to {}", target);
   }
 }

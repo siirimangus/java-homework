@@ -5,6 +5,7 @@ import java.util.List;
 import com.example.homework.dto.NotificationRequest;
 import com.example.homework.dto.NotificationResponse;
 import com.example.homework.service.NotificationService;
+import jakarta.validation.Valid;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,7 +24,7 @@ public class NotificationController {
 
   @RequestMapping(value = "/send", method = RequestMethod.POST)
   @ResponseBody
-  public NotificationResponse send(@RequestBody NotificationRequest request) {
+  public NotificationResponse send(@Valid @RequestBody NotificationRequest request) {
     return service.processNotification(request.getType(), request.getTarget(), request.getPayload());
   }
 

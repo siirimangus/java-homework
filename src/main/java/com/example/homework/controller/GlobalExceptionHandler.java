@@ -1,5 +1,7 @@
 package com.example.homework.controller;
 
+import java.util.stream.Collectors;
+
 import com.example.homework.exception.CircuitBreakerOpenException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
@@ -7,16 +9,37 @@ import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/** Maps service exceptions to RFC 7807 problem responses. */
+/**
+ * Maps exceptions to RFC 7807 problem responses. Standard Spring MVC errors (malformed JSON, wrong
+ * method, unknown path, ...) are handled by the base class; service exceptions are mapped here.
+ */
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+  @Override
+  protected ResponseEntity<Object> handleMethodArgumentNotValid(
+      MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+    String detail = ex.getBindingResult().getFieldErrors().stream()
+        .map(FieldError::getDefaultMessage)
+        .sorted()
+        .collect(Collectors.joining(" "));
+    ex.getBody().setDetail(detail);
+    return super.handleMethodArgumentNotValid(ex, headers, status, request);
+  }
 
   @ExceptionHandler({InvalidNotificationRequestException.class, UnsupportedNotificationTypeException.class})
   public ProblemDetail handleBadRequest(RuntimeException ex) {
@@ -35,7 +58,6 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(NotificationDeliveryException.class)
   public ProblemDetail handleDeliveryFailure(NotificationDeliveryException ex) {
-    log.warn("Notification delivery failed", ex);
     return problem(HttpStatus.BAD_GATEWAY, ex.getMessage());
   }
 

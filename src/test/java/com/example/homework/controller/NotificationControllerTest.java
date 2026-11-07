@@ -36,6 +36,21 @@ class NotificationControllerTest {
   }
 
   @Test
+  void tooLongTargetReturnsBadRequest() throws Exception {
+    send("EMAIL", "a".repeat(256))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.detail").value("Target must be at most 255 characters."));
+  }
+
+  @Test
+  void malformedJsonReturnsBadRequest() throws Exception {
+    mockMvc.perform(post("/api/notifications/send")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{not json"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void unsupportedTypeReturnsBadRequest() throws Exception {
     send("FAX", "ops@example.com")
         .andExpect(status().isBadRequest())
