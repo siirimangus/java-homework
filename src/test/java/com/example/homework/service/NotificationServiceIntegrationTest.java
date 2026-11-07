@@ -3,7 +3,7 @@ package com.example.homework.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.example.homework.dto.LegacyNotificationResponse;
+import com.example.homework.dto.NotificationResponse;
 import com.example.homework.model.NotificationStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,25 +12,25 @@ import org.springframework.test.annotation.DirtiesContext;
 
 @SpringBootTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-public class LegacyNotificationEngineIntegrationTest {
+public class NotificationServiceIntegrationTest {
 
   @Autowired
-  private LegacyNotificationEngine engine;
+  private NotificationService service;
 
   @Test
   void emailSuccessIsStoredAsSent() throws Exception {
-    LegacyNotificationResponse response = engine.processNotification("EMAIL", "buyer@example.com", "hello");
+    NotificationResponse response = service.processNotification("EMAIL", "buyer@example.com", "hello");
 
     assertThat(response.getStatus()).isEqualTo(NotificationStatus.SENT);
     assertThat(response.getDispatchCount()).isEqualTo(1);
     assertThat(response.getFailureCount()).isZero();
-    assertThat(engine.getHistory()).hasSize(1);
+    assertThat(service.getHistory()).hasSize(1);
   }
 
   @Test
   void blockedTargetFailsBeforeDispatchIsInserted() {
     try {
-      engine.processNotification("SMS", "blocked-user@example.com", "hello");
+      service.processNotification("SMS", "blocked-user@example.com", "hello");
       fail("Expected blocked target to fail");
     } catch (RuntimeException ex) {
       assertThat(ex.getMessage()).isEqualTo("Business Rule Violation: User is blacklisted or rate-limited by DB policy.");
@@ -38,19 +38,19 @@ public class LegacyNotificationEngineIntegrationTest {
       fail("Expected RuntimeException but got: " + ex.getClass().getName());
     }
 
-    assertThat(engine.getHistory()).isEmpty();
+    assertThat(service.getHistory()).isEmpty();
   }
 
   @Test
   void unsupportedTypeIsStoredAsUnknown() {
     try {
-      engine.processNotification("FAX", "ops@example.com", "hello");
+      service.processNotification("FAX", "ops@example.com", "hello");
       fail("Expected unsupported type to fail");
     } catch (Exception ex) {
       assertThat(ex.getMessage()).isEqualTo("Unsupported type: FAX");
     }
 
-    LegacyNotificationResponse latest = engine.getLatestState();
+    NotificationResponse latest = service.getLatestState();
     assertThat(latest.getStatus()).isEqualTo(NotificationStatus.UNKNOWN);
     assertThat(latest.getMessage()).isEqualTo("Unsupported type: FAX");
   }
@@ -59,7 +59,7 @@ public class LegacyNotificationEngineIntegrationTest {
   void threeFailuresOpenCircuitBreakerForNextAttempt() {
     for (int i = 0; i < 3; i++) {
       try {
-        engine.processNotification("EMAIL", "error-user@example.com", "boom");
+        service.processNotification("EMAIL", "error-user@example.com", "boom");
         fail("Expected email failure");
       } catch (RuntimeException ex) {
         assertThat(ex.getMessage()).isEqualTo("SMTP Timeout");
@@ -69,7 +69,7 @@ public class LegacyNotificationEngineIntegrationTest {
     }
 
     try {
-      engine.processNotification("SMS", "ok-user@example.com", "hello");
+      service.processNotification("SMS", "ok-user@example.com", "hello");
       fail("Expected circuit breaker to reject the request");
     } catch (RuntimeException ex) {
       assertThat(ex.getMessage()).isEqualTo("Circuit breaker OPEN via database state.");
@@ -77,7 +77,7 @@ public class LegacyNotificationEngineIntegrationTest {
       fail("Expected RuntimeException but got: " + ex.getClass().getName());
     }
 
-    LegacyNotificationResponse latest = engine.getLatestState();
+    NotificationResponse latest = service.getLatestState();
     assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
     assertThat(latest.getFailureCount()).isEqualTo(3);
     assertThat(latest.getDispatchCount()).isEqualTo(4);

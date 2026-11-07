@@ -1,6 +1,6 @@
 package com.example.homework.dto;
 
-public class LegacyNotificationRequest {
+public class NotificationRequest {
 
   private String type;
   private String target;

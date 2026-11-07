@@ -4,7 +4,7 @@ import java.sql.Timestamp;
 
 import com.example.homework.model.NotificationStatus;
 
-public class LegacyNotificationResponse {
+public class NotificationResponse {
 
   private long id;
   private String type;

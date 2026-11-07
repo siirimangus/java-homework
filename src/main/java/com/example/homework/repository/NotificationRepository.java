@@ -3,7 +3,7 @@ package com.example.homework.repository;
 import java.sql.Timestamp;
 import java.util.List;
 
-import com.example.homework.dto.LegacyNotificationResponse;
+import com.example.homework.dto.NotificationResponse;
 import com.example.homework.mapper.NotificationRowMapper;
 import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -84,18 +84,18 @@ public class NotificationRepository {
         NotificationStatus.REJECTED.getCode(), shorten(message), new Timestamp(System.currentTimeMillis()), id);
   }
 
-  public LegacyNotificationResponse getLatestState() {
-    List<LegacyNotificationResponse> items = jdbcTemplate.query(
+  public NotificationResponse getLatestState() {
+    List<NotificationResponse> items = jdbcTemplate.query(
         "select * from ntf_tx order by id desc limit 1",
         rowMapper);
     return items.isEmpty() ? null : items.get(0);
   }
 
-  public LegacyNotificationResponse getDispatchById(long id) {
+  public NotificationResponse getDispatchById(long id) {
     return jdbcTemplate.queryForObject("select * from ntf_tx where id = ?", rowMapper, id);
   }
 
-  public List<LegacyNotificationResponse> getHistory() {
+  public List<NotificationResponse> getHistory() {
     return jdbcTemplate.query("select * from ntf_tx order by id desc limit 20", rowMapper);
   }
 

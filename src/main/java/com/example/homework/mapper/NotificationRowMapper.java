@@ -3,17 +3,17 @@ package com.example.homework.mapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import com.example.homework.dto.LegacyNotificationResponse;
+import com.example.homework.dto.NotificationResponse;
 import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 
 @Component
-public class NotificationRowMapper implements RowMapper<LegacyNotificationResponse> {
+public class NotificationRowMapper implements RowMapper<NotificationResponse> {
 
   @Override
-  public LegacyNotificationResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
-    LegacyNotificationResponse response = new LegacyNotificationResponse();
+  public NotificationResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
+    NotificationResponse response = new NotificationResponse();
     response.setId(rs.getLong("id"));
     response.setType(rs.getString("tp"));
     response.setTarget(rs.getString("tgt"));

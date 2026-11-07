@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class LegacyNotificationControllerTest {
+class NotificationControllerTest {
 
   @Autowired
   private MockMvc mockMvc;
@@ -68,7 +68,7 @@ class LegacyNotificationControllerTest {
 
   private ResultActions send(String type, String target) throws Exception {
     String body = "{\"type\":\"" + type + "\",\"target\":\"" + target + "\",\"payload\":\"hello\"}";
-    return mockMvc.perform(post("/api/legacy/notifications/send")
+    return mockMvc.perform(post("/api/notifications/send")
         .contentType(MediaType.APPLICATION_JSON)
         .content(body));
   }

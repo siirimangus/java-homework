@@ -4,7 +4,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-import com.example.homework.dto.LegacyNotificationResponse;
+import com.example.homework.dto.NotificationResponse;
 import com.example.homework.exception.CircuitBreakerOpenException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
@@ -16,19 +16,19 @@ import com.example.homework.repository.NotificationRepository;
 import org.springframework.stereotype.Service;
 
 @Service
-public class LegacyNotificationEngine {
+public class NotificationService {
 
   private final NotificationRepository repository;
   private final Map<NotificationType, NotificationHandler> handlers = new EnumMap<>(NotificationType.class);
 
-  public LegacyNotificationEngine(NotificationRepository repository, List<NotificationHandler> handlers) {
+  public NotificationService(NotificationRepository repository, List<NotificationHandler> handlers) {
     this.repository = repository;
     for (NotificationHandler handler : handlers) {
       this.handlers.put(handler.getType(), handler);
     }
   }
 
-  public synchronized LegacyNotificationResponse processNotification(String type, String target, String payload) {
+  public synchronized NotificationResponse processNotification(String type, String target, String payload) {
 
     String safeType = type != null ? type.trim().toUpperCase() : "";
     String safeTarget = target != null ? target.trim() : null;
@@ -66,11 +66,11 @@ public class LegacyNotificationEngine {
     }
   }
 
-  public List<LegacyNotificationResponse> getHistory() {
+  public List<NotificationResponse> getHistory() {
     return repository.getHistory();
   }
 
-  public LegacyNotificationResponse getLatestState() {
+  public NotificationResponse getLatestState() {
     return repository.getLatestState();
   }
 }
