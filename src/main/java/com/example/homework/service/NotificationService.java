@@ -24,14 +24,17 @@ public class NotificationService {
   private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
   private final NotificationRepository repository;
+  private final NotificationCircuitBreaker circuitBreaker;
   private final TransactionTemplate transactionTemplate;
   private final Map<NotificationType, NotificationHandler> handlers = new EnumMap<>(NotificationType.class);
 
   public NotificationService(
       NotificationRepository repository,
       List<NotificationHandler> handlers,
+      NotificationCircuitBreaker circuitBreaker,
       TransactionTemplate transactionTemplate) {
     this.repository = repository;
+    this.circuitBreaker = circuitBreaker;
     this.transactionTemplate = transactionTemplate;
     for (NotificationHandler handler : handlers) {
       this.handlers.put(handler.getType(), handler);
@@ -56,7 +59,7 @@ public class NotificationService {
     Dispatch dispatch = transactionTemplate.execute(status -> admit(safeType, safeTarget, safePayload));
 
     // Rejections are thrown after the admission transaction has committed so the row is kept.
-    if (dispatch.failureCount() >= 3) {
+    if (dispatch.circuitOpen()) {
       repository.markAsSkipped(dispatch.id(), "Circuit breaker OPEN via database state.");
       log.warn("Dispatch {} skipped: circuit breaker is open", dispatch.id());
       throw new CircuitBreakerOpenException("Circuit breaker OPEN via database state.");
@@ -89,16 +92,16 @@ public class NotificationService {
     return repository.getLatestState();
   }
 
-  /** Runs inside a transaction: enforces the recipient policy and records the new dispatch. */
+  /** Runs inside a transaction: enforces the recipient policy, records the new dispatch and samples the breaker. */
   private Dispatch admit(String type, String target, String payload) {
     if (repository.isUserBlacklistedOrRateLimited(target)) {
       log.warn("Rejected notification to {}: recipient is blocked or rate-limited", target);
       throw new RecipientBlockedException("Business Rule Violation: User is blacklisted or rate-limited by DB policy.");
     }
     long id = repository.openDispatch(type, target, payload);
-    return new Dispatch(id, repository.getDispatchById(id).getFailureCount());
+    return new Dispatch(id, circuitBreaker.isOpen());
   }
 
-  private record Dispatch(long id, int failureCount) {
+  private record Dispatch(long id, boolean circuitOpen) {
   }
 }

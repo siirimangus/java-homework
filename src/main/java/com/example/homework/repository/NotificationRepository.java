@@ -2,11 +2,14 @@ package com.example.homework.repository;
 
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.example.homework.dto.NotificationResponse;
 import com.example.homework.mapper.NotificationRowMapper;
+import com.example.homework.model.DeliveryOutcome;
 import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -18,10 +21,12 @@ public class NotificationRepository {
 
   private final JdbcTemplate jdbcTemplate;
   private final NotificationRowMapper rowMapper;
+  private final Clock clock;
 
-  public NotificationRepository(JdbcTemplate jdbcTemplate, NotificationRowMapper rowMapper) {
+  public NotificationRepository(JdbcTemplate jdbcTemplate, NotificationRowMapper rowMapper, Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
     this.rowMapper = rowMapper;
+    this.clock = clock;
   }
 
   public boolean isUserBlacklistedOrRateLimited(String target) {
@@ -46,7 +51,7 @@ public class NotificationRepository {
    */
   public long openDispatch(String type, String target, String payload) {
     String blocked = (target != null && target.toLowerCase().contains("blocked")) ? "Y" : "N";
-    Timestamp now = new Timestamp(System.currentTimeMillis());
+    Timestamp now = Timestamp.from(clock.instant());
     KeyHolder keyHolder = new GeneratedKeyHolder();
 
     jdbcTemplate.update(connection -> {
@@ -71,28 +76,39 @@ public class NotificationRepository {
     return Objects.requireNonNull(keyHolder.getKey(), "No generated id returned").longValue();
   }
 
+  /** The latest delivery that finished as sent or failed; rejected and unsupported rows are ignored. */
+  public Optional<DeliveryOutcome> getLastDeliveryOutcome() {
+    return jdbcTemplate.query(
+            "select fc, upd from ntf_tx where st in (?, ?) order by id desc limit 1",
+            (rs, rowNum) -> new DeliveryOutcome(rs.getInt("fc"), rs.getTimestamp("upd").toInstant()),
+            NotificationStatus.SENT.getCode(),
+            NotificationStatus.ERROR.getCode())
+        .stream()
+        .findFirst();
+  }
+
   public void recordDatabaseFailure(long id, String error) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, fc = fc + 1, lm = ?, upd = ? where id = ?",
-        NotificationStatus.ERROR.getCode(), shorten(error), new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.ERROR.getCode(), shorten(error), Timestamp.from(clock.instant()), id);
   }
 
   public void resetDatabaseFailures(long id) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, fc = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.SENT.getCode(), 0, "SENT", new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.SENT.getCode(), 0, "SENT", Timestamp.from(clock.instant()), id);
   }
 
   public void recordUnsupportedType(long id, String type) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.UNKNOWN.getCode(), shorten("Unsupported type: " + type), new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.UNKNOWN.getCode(), shorten("Unsupported type: " + type), Timestamp.from(clock.instant()), id);
   }
 
   public void markAsSkipped(long id, String message) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.REJECTED.getCode(), shorten(message), new Timestamp(System.currentTimeMillis()), id);
+        NotificationStatus.REJECTED.getCode(), shorten(message), Timestamp.from(clock.instant()), id);
   }
 
   public NotificationResponse getLatestState() {
