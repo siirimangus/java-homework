@@ -5,9 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 import com.example.homework.dto.NotificationResponse;
+import com.example.homework.dto.NotificationUpdateRequest;
 import com.example.homework.exception.CircuitBreakerOpenException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
+import com.example.homework.exception.NotificationNotFoundException;
+import com.example.homework.exception.NotificationNotUpdatableException;
 import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import com.example.homework.handler.NotificationHandler;
@@ -82,6 +85,30 @@ public class NotificationService {
       log.warn("Dispatch {} failed ({} to {})", dispatch.id(), safeType, safeTarget, e);
       throw new NotificationDeliveryException(e.getMessage(), e);
     }
+  }
+
+  /**
+   * Edits the stored record of a finished notification. Nothing is sent again, and the status,
+   * counters and failure message are left as they were.
+   */
+  public NotificationResponse updateNotification(long id, NotificationUpdateRequest request) {
+    String target = request.target() != null ? request.target().trim() : null;
+    if (target != null && target.isEmpty()) {
+      throw new InvalidNotificationRequestException("Target must not be blank.");
+    }
+    if (target == null && request.payload() == null) {
+      throw new InvalidNotificationRequestException("Nothing to update: provide a target or a payload.");
+    }
+
+    if (!repository.updateDetails(id, target, request.payload())) {
+      NotificationResponse existing = repository.findById(id)
+          .orElseThrow(() -> new NotificationNotFoundException("Notification " + id + " not found."));
+      throw new NotificationNotUpdatableException(
+          "Notification " + id + " cannot be updated while its status is " + existing.getStatus() + ".");
+    }
+
+    log.info("Notification {} updated", id);
+    return repository.getDispatchById(id);
   }
 
   public List<NotificationResponse> getHistory() {

@@ -118,6 +118,25 @@ public class NotificationRepository {
     return items.isEmpty() ? null : items.get(0);
   }
 
+  public Optional<NotificationResponse> findById(long id) {
+    return jdbcTemplate.query("select * from ntf_tx where id = ?", rowMapper, id).stream().findFirst();
+  }
+
+  /**
+   * Changes the given fields (null leaves a field unchanged) of a finished notification. The
+   * status condition is part of the statement, so the check and the change are atomic.
+   *
+   * @return whether a notification was updated
+   */
+  public boolean updateDetails(long id, String target, String payload) {
+    int updated = jdbcTemplate.update(
+        "update ntf_tx set tgt = coalesce(?, tgt), pld = coalesce(?, pld), upd = ? "
+            + "where id = ? and st in (?, ?)",
+        target, payload, Timestamp.from(clock.instant()), id,
+        NotificationStatus.SENT.getCode(), NotificationStatus.ERROR.getCode());
+    return updated > 0;
+  }
+
   public NotificationResponse getDispatchById(long id) {
     return jdbcTemplate.queryForObject("select * from ntf_tx where id = ?", rowMapper, id);
   }

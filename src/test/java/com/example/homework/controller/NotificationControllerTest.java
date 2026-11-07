@@ -1,10 +1,12 @@
 package com.example.homework.controller;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import com.example.homework.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,6 +22,9 @@ class NotificationControllerTest {
 
   @Autowired
   private MockMvc mockMvc;
+
+  @Autowired
+  private NotificationService service;
 
   @Test
   void successfulSendReturnsOk() throws Exception {
@@ -79,6 +84,60 @@ class NotificationControllerTest {
     send("SMS", "ok-user@example.com")
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.detail").value("Circuit breaker OPEN via database state."));
+  }
+
+  @Test
+  void updateChangesOnlyTheGivenFields() throws Exception {
+    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").getId();
+
+    update(id, "{\"payload\":\"corrected\"}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.payload").value("corrected"))
+        .andExpect(jsonPath("$.target").value("buyer@example.com"))
+        .andExpect(jsonPath("$.status").value("SENT"));
+
+    update(id, "{\"target\":\"other@example.com\"}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.payload").value("corrected"))
+        .andExpect(jsonPath("$.target").value("other@example.com"));
+  }
+
+  @Test
+  void updateOfUnknownNotificationReturnsNotFound() throws Exception {
+    update(999, "{\"payload\":\"x\"}")
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void updateOfRejectedNotificationReturnsConflict() throws Exception {
+    send("FAX", "ops@example.com").andExpect(status().isBadRequest());
+    long id = service.getLatestState().getId();
+
+    update(id, "{\"payload\":\"x\"}")
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  void updateWithoutChangesReturnsBadRequest() throws Exception {
+    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").getId();
+
+    update(id, "{}")
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void updateWithBlankTargetReturnsBadRequest() throws Exception {
+    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").getId();
+
+    update(id, "{\"target\":\"   \"}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.detail").value("Target must not be blank."));
+  }
+
+  private ResultActions update(long id, String body) throws Exception {
+    return mockMvc.perform(patch("/api/notifications/" + id)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(body));
   }
 
   private ResultActions send(String type, String target) throws Exception {

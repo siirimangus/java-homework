@@ -5,6 +5,8 @@ import java.util.stream.Collectors;
 import com.example.homework.exception.CircuitBreakerOpenException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
+import com.example.homework.exception.NotificationNotFoundException;
+import com.example.homework.exception.NotificationNotUpdatableException;
 import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import org.slf4j.Logger;
@@ -44,6 +46,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   @ExceptionHandler({InvalidNotificationRequestException.class, UnsupportedNotificationTypeException.class})
   public ProblemDetail handleBadRequest(RuntimeException ex) {
     return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
+  }
+
+  @ExceptionHandler(NotificationNotFoundException.class)
+  public ProblemDetail handleNotFound(NotificationNotFoundException ex) {
+    return problem(HttpStatus.NOT_FOUND, ex.getMessage());
+  }
+
+  @ExceptionHandler(NotificationNotUpdatableException.class)
+  public ProblemDetail handleNotUpdatable(NotificationNotUpdatableException ex) {
+    return problem(HttpStatus.CONFLICT, ex.getMessage());
   }
 
   @ExceptionHandler(RecipientBlockedException.class)
