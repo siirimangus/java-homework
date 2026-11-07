@@ -1,17 +1,14 @@
 package com.example.homework.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {"classpath:applicationContext.xml"})
+@SpringBootTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class LegacyNotificationEngineIntegrationTest {
 
@@ -19,7 +16,7 @@ public class LegacyNotificationEngineIntegrationTest {
   private LegacyNotificationEngine engine;
 
   @Test
-  public void emailSuccessIsStoredAsSent() throws Exception {
+  void emailSuccessIsStoredAsSent() throws Exception {
     LegacyNotificationResponse response = engine.processNotification("EMAIL", "buyer@example.com", "hello");
 
     assertThat(response.getStatus()).isEqualTo("S");
@@ -29,7 +26,7 @@ public class LegacyNotificationEngineIntegrationTest {
   }
 
   @Test
-  public void blockedTargetFailsBeforeDispatchIsInserted() {
+  void blockedTargetFailsBeforeDispatchIsInserted() {
     try {
       engine.processNotification("SMS", "blocked-user@example.com", "hello");
       fail("Expected blocked target to fail");
@@ -43,7 +40,7 @@ public class LegacyNotificationEngineIntegrationTest {
   }
 
   @Test
-  public void unsupportedTypeIsStoredAsUnknown() {
+  void unsupportedTypeIsStoredAsUnknown() {
     try {
       engine.processNotification("FAX", "ops@example.com", "hello");
       fail("Expected unsupported type to fail");
@@ -57,7 +54,7 @@ public class LegacyNotificationEngineIntegrationTest {
   }
 
   @Test
-  public void threeFailuresOpenCircuitBreakerForNextAttempt() {
+  void threeFailuresOpenCircuitBreakerForNextAttempt() {
     for (int i = 0; i < 3; i++) {
       try {
         engine.processNotification("EMAIL", "error-user@example.com", "boom");
