@@ -1,6 +1,6 @@
 package com.example.homework.service;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -11,6 +11,7 @@ import com.example.homework.exception.NotificationDeliveryException;
 import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import com.example.homework.handler.NotificationHandler;
+import com.example.homework.model.NotificationType;
 import com.example.homework.repository.NotificationRepository;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Service;
 public class LegacyNotificationEngine {
 
   private final NotificationRepository repository;
-  private final Map<String, NotificationHandler> handlers = new HashMap<>();
+  private final Map<NotificationType, NotificationHandler> handlers = new EnumMap<>(NotificationType.class);
 
   public LegacyNotificationEngine(NotificationRepository repository, List<NotificationHandler> handlers) {
     this.repository = repository;
@@ -48,7 +49,7 @@ public class LegacyNotificationEngine {
       throw new CircuitBreakerOpenException("Circuit breaker OPEN via database state.");
     }
 
-    NotificationHandler handler = handlers.get(safeType);
+    NotificationHandler handler = NotificationType.find(safeType).map(handlers::get).orElse(null);
     if (handler == null) {
       System.out.println("LOGGING TO DB: Unknown type attempted -> " + type);
       repository.recordUnsupportedType(id, safeType);
