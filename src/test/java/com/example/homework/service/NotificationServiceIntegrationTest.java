@@ -3,6 +3,14 @@ package com.example.homework.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import com.example.homework.dto.NotificationResponse;
 import com.example.homework.model.NotificationStatus;
 import org.junit.jupiter.api.Test;
@@ -81,5 +89,29 @@ public class NotificationServiceIntegrationTest {
     assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
     assertThat(latest.getFailureCount()).isEqualTo(3);
     assertThat(latest.getDispatchCount()).isEqualTo(4);
+  }
+
+  @Test
+  void concurrentDispatchesAreAllStoredWithUniqueIds() throws Exception {
+    int requests = 50;
+    ExecutorService executor = Executors.newFixedThreadPool(16);
+    try {
+      List<Future<NotificationResponse>> futures = new ArrayList<>();
+      for (int i = 0; i < requests; i++) {
+        String target = "user" + i + "@example.com";
+        Callable<NotificationResponse> task = () -> service.processNotification("EMAIL", target, "hello");
+        futures.add(executor.submit(task));
+      }
+
+      HashSet<Long> ids = new HashSet<>();
+      for (Future<NotificationResponse> future : futures) {
+        NotificationResponse response = future.get();
+        assertThat(response.getStatus()).isEqualTo(NotificationStatus.SENT);
+        ids.add(response.getId());
+      }
+      assertThat(ids).hasSize(requests);
+    } finally {
+      executor.shutdownNow();
+    }
   }
 }

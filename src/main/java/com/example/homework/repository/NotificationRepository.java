@@ -1,12 +1,16 @@
 package com.example.homework.repository;
 
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Objects;
 
 import com.example.homework.dto.NotificationResponse;
 import com.example.homework.mapper.NotificationRowMapper;
 import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -36,33 +40,41 @@ public class NotificationRepository {
     return recentCount != null && recentCount >= 3;
   }
 
+  /**
+   * Inserts a new dispatch row and returns its generated id. The failure and dispatch counters are
+   * derived inside the single insert statement, so no read-then-write happens in application code.
+   */
   public long openDispatch(String type, String target, String payload) {
-    long id = getNextId();
-    int nextDispatchCount = getTotalDispatches() + 1;
-    int currentFailureCount = getFailureCountFromDatabase();
     String blocked = (target != null && target.toLowerCase().contains("blocked")) ? "Y" : "N";
     Timestamp now = new Timestamp(System.currentTimeMillis());
+    KeyHolder keyHolder = new GeneratedKeyHolder();
 
-    jdbcTemplate.update(
-        "insert into ntf_tx(id, tp, tgt, pld, st, fc, dc, bl, lm, crt, upd) "
-            + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        id, type, target, payload, NotificationStatus.NEW.getCode(), currentFailureCount, nextDispatchCount, blocked, "START", now, now);
+    jdbcTemplate.update(connection -> {
+      PreparedStatement statement = connection.prepareStatement(
+          "insert into ntf_tx(tp, tgt, pld, st, fc, dc, bl, lm, crt, upd) "
+              + "values (?, ?, ?, ?, "
+              + "coalesce((select fc from ntf_tx order by id desc limit 1), 0), "
+              + "(select coalesce(max(dc), 0) + 1 from ntf_tx), "
+              + "?, ?, ?, ?)",
+          new String[] {"id"});
+      statement.setString(1, type);
+      statement.setString(2, target);
+      statement.setString(3, payload);
+      statement.setString(4, NotificationStatus.NEW.getCode());
+      statement.setString(5, blocked);
+      statement.setString(6, "START");
+      statement.setTimestamp(7, now);
+      statement.setTimestamp(8, now);
+      return statement;
+    }, keyHolder);
 
-    return id;
-  }
-
-  public int getFailureCountFromDatabase() {
-    List<Integer> results = jdbcTemplate.query(
-        "select fc from ntf_tx order by id desc limit 1",
-        (rs, rowNum) -> rs.getInt(1));
-    return results.isEmpty() ? 0 : results.get(0);
+    return Objects.requireNonNull(keyHolder.getKey(), "No generated id returned").longValue();
   }
 
   public void recordDatabaseFailure(long id, String error) {
-    int nextFailureCount = getFailureCountFromDatabase() + 1;
     jdbcTemplate.update(
-        "update ntf_tx set st = ?, fc = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.ERROR.getCode(), nextFailureCount, shorten(error), new Timestamp(System.currentTimeMillis()), id);
+        "update ntf_tx set st = ?, fc = fc + 1, lm = ?, upd = ? where id = ?",
+        NotificationStatus.ERROR.getCode(), shorten(error), new Timestamp(System.currentTimeMillis()), id);
   }
 
   public void resetDatabaseFailures(long id) {
@@ -96,18 +108,6 @@ public class NotificationRepository {
 
   public List<NotificationResponse> getHistory() {
     return jdbcTemplate.query("select * from ntf_tx order by id desc limit 20", rowMapper);
-  }
-
-  private long getNextId() {
-    Long maxId = jdbcTemplate.queryForObject("select coalesce(max(id), 0) from ntf_tx", Long.class);
-    return (maxId == null ? 0L : maxId) + 1L;
-  }
-
-  private int getTotalDispatches() {
-    Integer latestDispatchCount = jdbcTemplate.queryForObject(
-        "select coalesce(max(dc), 0) from ntf_tx",
-        Integer.class);
-    return latestDispatchCount == null ? 0 : latestDispatchCount;
   }
 
   private String shorten(String value) {
