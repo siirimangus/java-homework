@@ -6,7 +6,7 @@ public final class TargetMasker {
   private TargetMasker() {
   }
 
-  /** {@code buyer@example.com} becomes {@code b***@example.com}; other targets keep only their last two characters. */
+  /** {@code buyer@example.com} becomes {@code b***@example.com}; other targets keep their last two characters. */
   public static String mask(String target) {
     if (target == null || target.isBlank()) {
       return "***";

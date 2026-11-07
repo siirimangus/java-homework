@@ -129,10 +129,7 @@ public class NotificationService {
     return repository.getLatestState();
   }
 
-  /**
-   * Runs inside a transaction: records the new dispatch, enforces the recipient policy and samples
-   * the breaker. A refused recipient is still recorded (as rejected and blocked) for auditing.
-   */
+  /** Runs inside a transaction. A refused recipient is still recorded, as rejected and blocked. */
   private Dispatch admit(String type, String target, String payload) {
     try {
       recipientPolicy.enforce(type, target);

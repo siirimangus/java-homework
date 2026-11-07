@@ -36,10 +36,6 @@ public class RecipientPolicy {
     this.clock = clock;
   }
 
-  /**
-   * @throws RecipientBlockedException if the recipient is blacklisted
-   * @throws RecipientRateLimitedException if the recipient received too many notifications recently
-   */
   public void enforce(String type, String target) {
     // Only email addresses are case-insensitive; SMS numbers and push tokens are matched exactly.
     boolean ignoreCase = NotificationType.EMAIL.name().equals(type);

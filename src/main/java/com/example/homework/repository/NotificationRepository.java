@@ -30,12 +30,7 @@ public class NotificationRepository {
     this.clock = clock;
   }
 
-  /**
-   * Number of dispatches accepted for the recipient since the given instant. Rejected rows are not
-   * counted, so being rejected does not extend a rate limit.
-   *
-   * @param ignoreCase true for targets that are case-insensitive, such as email addresses
-   */
+  /** Dispatches accepted for the recipient since the given instant; rejected rows are not counted. */
   public int countDispatchesSince(String target, boolean ignoreCase, Instant since) {
     String condition = ignoreCase ? "lower(tgt) = lower(?)" : "tgt = ?";
     Integer count = jdbcTemplate.queryForObject(
@@ -112,7 +107,6 @@ public class NotificationRepository {
         NotificationStatus.REJECTED.getCode(), shorten(message), Timestamp.from(clock.instant()), id);
   }
 
-  /** Marks a dispatch as refused because its recipient is blacklisted or rate-limited. */
   public void markAsBlocked(long id, String message) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, bl = ?, lm = ?, upd = ? where id = ?",

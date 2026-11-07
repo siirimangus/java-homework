@@ -34,7 +34,6 @@ public class BlacklistRepository {
     this.clock = clock;
   }
 
-  /** @param ignoreCase true for targets that are case-insensitive, such as email addresses */
   public boolean existsByTarget(String target, boolean ignoreCase) {
     String condition = ignoreCase ? "lower(target) = lower(?)" : "target = ?";
     Integer count = jdbcTemplate.queryForObject(
@@ -42,7 +41,7 @@ public class BlacklistRepository {
     return count != null && count > 0;
   }
 
-  /** Adds a recipient; the unique constraint makes a duplicate fail atomically. */
+  /** The unique constraint makes a duplicate fail atomically. */
   public BlacklistEntryResponse add(String target, String reason) {
     String normalized = target.trim();
     Instant now = clock.instant();
@@ -70,7 +69,6 @@ public class BlacklistRepository {
     return jdbcTemplate.query("select * from ntf_blacklist order by id", ROW_MAPPER);
   }
 
-  /** @return whether an entry was removed */
   public boolean deleteById(long id) {
     return jdbcTemplate.update("delete from ntf_blacklist where id = ?", id) > 0;
   }
