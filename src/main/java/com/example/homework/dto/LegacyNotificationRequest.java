@@ -1,4 +1,4 @@
-package com.example.homework.notification;
+package com.example.homework.dto;
 
 public class LegacyNotificationRequest {
 
