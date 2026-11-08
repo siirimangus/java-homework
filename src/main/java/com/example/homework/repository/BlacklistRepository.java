@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Objects;
 
 import com.example.homework.dto.BlacklistEntryResponse;
-import com.example.homework.exception.BlacklistEntryAlreadyExistsException;
+import com.example.homework.exception.ConflictException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -58,7 +58,7 @@ public class BlacklistRepository {
         return statement;
       }, keyHolder);
     } catch (DuplicateKeyException e) {
-      throw new BlacklistEntryAlreadyExistsException("Recipient is already blacklisted: " + normalized);
+      throw new ConflictException("Recipient is already blacklisted: " + normalized);
     }
 
     long id = Objects.requireNonNull(keyHolder.getKey(), "No generated id returned").longValue();

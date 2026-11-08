@@ -9,13 +9,13 @@ import java.util.stream.Collectors;
 import com.example.homework.dto.NotificationResponse;
 import com.example.homework.dto.NotificationUpdateRequest;
 import com.example.homework.exception.CircuitBreakerOpenException;
+import com.example.homework.exception.ConflictException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
 import com.example.homework.exception.NotificationException;
-import com.example.homework.exception.NotificationNotFoundException;
-import com.example.homework.exception.NotificationNotUpdatableException;
 import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.RecipientRateLimitedException;
+import com.example.homework.exception.ResourceNotFoundException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import com.example.homework.handler.NotificationHandler;
 import com.example.homework.model.NotificationStatus;
@@ -103,7 +103,7 @@ public class NotificationService {
 
     if (!repository.updateDetails(id, target, request.payload())) {
       NotificationResponse existing = findOrThrow(id);
-      throw new NotificationNotUpdatableException(
+      throw new ConflictException(
           "Notification " + id + " cannot be updated while its status is " + existing.status() + ".");
     }
 
@@ -148,7 +148,7 @@ public class NotificationService {
 
   private NotificationResponse findOrThrow(long id) {
     return repository.findById(id)
-        .orElseThrow(() -> new NotificationNotFoundException("Notification " + id + " not found."));
+        .orElseThrow(() -> new ResourceNotFoundException("Notification " + id + " not found."));
   }
 
   private record Dispatch(long id, NotificationException rejection) {

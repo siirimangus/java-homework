@@ -3,7 +3,7 @@ package com.example.homework.service;
 import java.util.List;
 
 import com.example.homework.dto.BlacklistEntryResponse;
-import com.example.homework.exception.BlacklistEntryNotFoundException;
+import com.example.homework.exception.ResourceNotFoundException;
 import com.example.homework.repository.BlacklistRepository;
 import com.example.homework.util.TargetMasker;
 import org.slf4j.Logger;
@@ -33,7 +33,7 @@ public class BlacklistService {
 
   public void remove(long id) {
     if (!repository.deleteById(id)) {
-      throw new BlacklistEntryNotFoundException("Blacklist entry " + id + " not found.");
+      throw new ResourceNotFoundException("Blacklist entry " + id + " not found.");
     }
     log.info("Removed blacklist entry {}", id);
   }

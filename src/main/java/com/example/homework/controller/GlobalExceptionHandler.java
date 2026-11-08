@@ -2,17 +2,13 @@ package com.example.homework.controller;
 
 import java.util.stream.Collectors;
 
-import com.example.homework.exception.BlacklistEntryAlreadyExistsException;
-import com.example.homework.exception.BlacklistEntryNotFoundException;
 import com.example.homework.exception.CircuitBreakerOpenException;
+import com.example.homework.exception.ConflictException;
 import com.example.homework.exception.InvalidNotificationRequestException;
 import com.example.homework.exception.NotificationDeliveryException;
-import com.example.homework.exception.NotificationException;
-import com.example.homework.exception.NotificationNotFoundException;
-import com.example.homework.exception.NotificationNotUpdatableException;
 import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.RecipientRateLimitedException;
-import com.example.homework.exception.UnsupportedNotificationTypeException;
+import com.example.homework.exception.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -47,18 +43,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return super.handleMethodArgumentNotValid(ex, headers, status, request);
   }
 
-  @ExceptionHandler({InvalidNotificationRequestException.class, UnsupportedNotificationTypeException.class})
-  public ProblemDetail handleBadRequest(RuntimeException ex) {
+  @ExceptionHandler(InvalidNotificationRequestException.class)
+  public ProblemDetail handleBadRequest(InvalidNotificationRequestException ex) {
     return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
   }
 
-  @ExceptionHandler({NotificationNotFoundException.class, BlacklistEntryNotFoundException.class})
-  public ProblemDetail handleNotFound(NotificationException ex) {
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
     return problem(HttpStatus.NOT_FOUND, ex.getMessage());
   }
 
-  @ExceptionHandler({NotificationNotUpdatableException.class, BlacklistEntryAlreadyExistsException.class})
-  public ProblemDetail handleConflict(NotificationException ex) {
+  @ExceptionHandler(ConflictException.class)
+  public ProblemDetail handleConflict(ConflictException ex) {
     return problem(HttpStatus.CONFLICT, ex.getMessage());
   }
 
