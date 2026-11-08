@@ -3,7 +3,6 @@ package com.example.homework.service;
 import java.util.List;
 
 import com.example.homework.dto.BlacklistEntryResponse;
-import com.example.homework.dto.BlacklistRequest;
 import com.example.homework.exception.BlacklistEntryNotFoundException;
 import com.example.homework.repository.BlacklistRepository;
 import com.example.homework.util.TargetMasker;
@@ -20,10 +19,6 @@ public class BlacklistService {
 
   public BlacklistService(BlacklistRepository repository) {
     this.repository = repository;
-  }
-
-  public BlacklistEntryResponse add(BlacklistRequest request) {
-    return add(request.target(), request.reason());
   }
 
   public BlacklistEntryResponse add(String target, String reason) {

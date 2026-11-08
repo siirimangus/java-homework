@@ -29,7 +29,7 @@ public class BlacklistController {
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public BlacklistEntryResponse add(@Valid @RequestBody BlacklistRequest request) {
-    return service.add(request);
+    return service.add(request.target(), request.reason());
   }
 
   @GetMapping
