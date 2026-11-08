@@ -108,7 +108,6 @@ public class NotificationRepository {
         NotificationStatus.SENT.getCode(), "SENT", Timestamp.from(clock.instant()), id);
   }
 
-  /** Marks a dispatch that was refused by a policy rule (blacklist or rate limit). */
   public void markAsBlocked(long id, String message) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, bl = ?, lm = ?, upd = ? where id = ?",
