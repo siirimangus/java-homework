@@ -95,34 +95,31 @@ public class NotificationRepository {
         .findFirst();
   }
 
-  public void recordDatabaseFailure(long id, String error) {
+  public void markAsFailed(long id, String error) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, fc = fc + 1, lm = ?, upd = ? where id = ?",
         NotificationStatus.ERROR.getCode(), shorten(error), Timestamp.from(clock.instant()), id);
   }
 
-  public void resetDatabaseFailures(long id) {
+  /** Marks the delivery as successful, which also resets the consecutive failure counter. */
+  public void markAsSent(long id) {
     jdbcTemplate.update(
-        "update ntf_tx set st = ?, fc = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.SENT.getCode(), 0, "SENT", Timestamp.from(clock.instant()), id);
+        "update ntf_tx set st = ?, fc = 0, lm = ?, upd = ? where id = ?",
+        NotificationStatus.SENT.getCode(), "SENT", Timestamp.from(clock.instant()), id);
   }
 
-  public void recordUnsupportedType(long id, String type) {
-    jdbcTemplate.update(
-        "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.UNKNOWN.getCode(), shorten("Unsupported type: " + type), Timestamp.from(clock.instant()), id);
-  }
-
-  public void markAsSkipped(long id, String message) {
-    jdbcTemplate.update(
-        "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
-        NotificationStatus.REJECTED.getCode(), shorten(message), Timestamp.from(clock.instant()), id);
-  }
-
+  /** Marks a dispatch that was refused by a policy rule (blacklist or rate limit). */
   public void markAsBlocked(long id, String message) {
     jdbcTemplate.update(
         "update ntf_tx set st = ?, bl = ?, lm = ?, upd = ? where id = ?",
         NotificationStatus.REJECTED.getCode(), "Y", shorten(message), Timestamp.from(clock.instant()), id);
+  }
+
+  /** Sets a status and message without touching the counters. */
+  public void updateStatus(long id, NotificationStatus status, String message) {
+    jdbcTemplate.update(
+        "update ntf_tx set st = ?, lm = ?, upd = ? where id = ?",
+        status.getCode(), shorten(message), Timestamp.from(clock.instant()), id);
   }
 
   public NotificationResponse getLatestState() {
@@ -151,18 +148,11 @@ public class NotificationRepository {
     return updated > 0;
   }
 
-  public NotificationResponse getDispatchById(long id) {
-    return jdbcTemplate.queryForObject("select * from ntf_tx where id = ?", ROW_MAPPER, id);
-  }
-
   public List<NotificationResponse> getHistory() {
     return jdbcTemplate.query("select * from ntf_tx order by id desc limit 20", ROW_MAPPER);
   }
 
   private String shorten(String value) {
-    if (value == null || value.length() <= 255) {
-      return value;
-    }
-    return value.substring(0, 255);
+    return value == null || value.length() <= 255 ? value : value.substring(0, 255);
   }
 }

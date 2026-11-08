@@ -1,8 +1,10 @@
 package com.example.homework.service;
 
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.example.homework.dto.NotificationResponse;
 import com.example.homework.dto.NotificationUpdateRequest;
@@ -16,6 +18,7 @@ import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.RecipientRateLimitedException;
 import com.example.homework.exception.UnsupportedNotificationTypeException;
 import com.example.homework.handler.NotificationHandler;
+import com.example.homework.model.NotificationStatus;
 import com.example.homework.model.NotificationType;
 import com.example.homework.repository.NotificationRepository;
 import com.example.homework.util.TargetMasker;
@@ -33,7 +36,7 @@ public class NotificationService {
   private final RecipientPolicy recipientPolicy;
   private final NotificationCircuitBreaker circuitBreaker;
   private final TransactionTemplate transactionTemplate;
-  private final Map<NotificationType, NotificationHandler> handlers = new EnumMap<>(NotificationType.class);
+  private final Map<NotificationType, NotificationHandler> handlers;
 
   public NotificationService(
       NotificationRepository repository,
@@ -45,9 +48,8 @@ public class NotificationService {
     this.recipientPolicy = recipientPolicy;
     this.circuitBreaker = circuitBreaker;
     this.transactionTemplate = transactionTemplate;
-    for (NotificationHandler handler : handlers) {
-      this.handlers.put(handler.getType(), handler);
-    }
+    this.handlers = handlers.stream()
+        .collect(Collectors.toMap(NotificationHandler::getType, Function.identity()));
   }
 
   /**
@@ -56,45 +58,34 @@ public class NotificationService {
    * the outcome is recorded with a single atomic statement.
    */
   public NotificationResponse processNotification(String type, String target, String payload) {
-
     String safeType = type != null ? type.trim().toUpperCase() : "";
-    String safeTarget = target != null ? target.trim() : null;
+    String safeTarget = target != null ? target.trim() : "";
     String safePayload = payload != null ? payload : "";
 
-    if (safeTarget == null || safeTarget.length() == 0) {
+    if (safeTarget.isEmpty()) {
       throw new InvalidNotificationRequestException("Target is mandatory.");
     }
 
-    Dispatch dispatch = transactionTemplate.execute(status -> admit(safeType, safeTarget, safePayload));
+    Optional<NotificationHandler> handler = NotificationType.find(safeType).map(handlers::get);
+    Dispatch dispatch = transactionTemplate.execute(
+        status -> admit(safeType, safeTarget, safePayload, handler.isPresent()));
 
     // Rejections are thrown after the admission transaction has committed so the row is kept.
     if (dispatch.rejection() != null) {
       log.warn("Dispatch {} rejected: {}", dispatch.id(), dispatch.rejection().getMessage());
       throw dispatch.rejection();
     }
-    if (dispatch.circuitOpen()) {
-      repository.markAsSkipped(dispatch.id(), "Circuit breaker OPEN via database state.");
-      log.warn("Dispatch {} skipped: circuit breaker is open", dispatch.id());
-      throw new CircuitBreakerOpenException("Circuit breaker OPEN via database state.");
-    }
-
-    NotificationHandler handler = NotificationType.find(safeType).map(handlers::get).orElse(null);
-    if (handler == null) {
-      repository.recordUnsupportedType(dispatch.id(), safeType);
-      log.warn("Dispatch {} has unsupported type: {}", dispatch.id(), safeType);
-      throw new UnsupportedNotificationTypeException("Unsupported type: " + type);
-    }
 
     try {
-      handler.execute(safeTarget, safePayload);
-      repository.resetDatabaseFailures(dispatch.id());
-      log.info("Dispatch {} sent ({} to {})", dispatch.id(), safeType, TargetMasker.mask(safeTarget));
-      return repository.getDispatchById(dispatch.id());
+      handler.orElseThrow().execute(safeTarget, safePayload);
     } catch (Exception e) {
-      repository.recordDatabaseFailure(dispatch.id(), e.getMessage());
+      repository.markAsFailed(dispatch.id(), e.getMessage());
       log.warn("Dispatch {} failed ({} to {})", dispatch.id(), safeType, TargetMasker.mask(safeTarget), e);
       throw new NotificationDeliveryException(e.getMessage(), e);
     }
+    repository.markAsSent(dispatch.id());
+    log.info("Dispatch {} sent ({} to {})", dispatch.id(), safeType, TargetMasker.mask(safeTarget));
+    return findOrThrow(dispatch.id());
   }
 
   /**
@@ -111,14 +102,13 @@ public class NotificationService {
     }
 
     if (!repository.updateDetails(id, target, request.payload())) {
-      NotificationResponse existing = repository.findById(id)
-          .orElseThrow(() -> new NotificationNotFoundException("Notification " + id + " not found."));
+      NotificationResponse existing = findOrThrow(id);
       throw new NotificationNotUpdatableException(
           "Notification " + id + " cannot be updated while its status is " + existing.status() + ".");
     }
 
     log.info("Notification {} updated", id);
-    return repository.getDispatchById(id);
+    return findOrThrow(id);
   }
 
   public List<NotificationResponse> getHistory() {
@@ -129,19 +119,38 @@ public class NotificationService {
     return repository.getLatestState();
   }
 
-  /** Runs inside a transaction. A refused recipient is still recorded, as rejected and blocked. */
-  private Dispatch admit(String type, String target, String payload) {
+  /**
+   * Runs inside a transaction: records the attempt and decides whether it may be delivered. Every
+   * refusal is stored on the row (the transaction must not roll back) and returned as the rejection.
+   */
+  private Dispatch admit(String type, String target, String payload, boolean supported) {
     try {
       recipientPolicy.enforce(type, target);
     } catch (RecipientBlockedException | RecipientRateLimitedException e) {
       long id = repository.openDispatch(type, target, payload);
       repository.markAsBlocked(id, e.getMessage());
-      return new Dispatch(id, false, e);
+      return new Dispatch(id, e);
     }
+
     long id = repository.openDispatch(type, target, payload);
-    return new Dispatch(id, circuitBreaker.isOpen(), null);
+    if (circuitBreaker.isOpen()) {
+      String message = "Circuit breaker OPEN via database state.";
+      repository.updateStatus(id, NotificationStatus.REJECTED, message);
+      return new Dispatch(id, new CircuitBreakerOpenException(message));
+    }
+    if (!supported) {
+      String message = "Unsupported type: " + type;
+      repository.updateStatus(id, NotificationStatus.UNKNOWN, message);
+      return new Dispatch(id, new UnsupportedNotificationTypeException(message));
+    }
+    return new Dispatch(id, null);
   }
 
-  private record Dispatch(long id, boolean circuitOpen, NotificationException rejection) {
+  private NotificationResponse findOrThrow(long id) {
+    return repository.findById(id)
+        .orElseThrow(() -> new NotificationNotFoundException("Notification " + id + " not found."));
+  }
+
+  private record Dispatch(long id, NotificationException rejection) {
   }
 }
