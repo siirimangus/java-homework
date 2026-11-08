@@ -18,7 +18,7 @@ public class EmailNotificationHandler implements NotificationHandler {
 
   @Override
   public void execute(String target, String payload) {
-    if (target != null && target.contains("error")) {
+    if (target.contains("error")) {
       throw new RuntimeException("SMTP Timeout");
     }
     log.info("Sending EMAIL notification to {}", TargetMasker.mask(target));

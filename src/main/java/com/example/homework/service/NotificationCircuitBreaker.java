@@ -1,7 +1,6 @@
 package com.example.homework.service;
 
 import java.time.Clock;
-import java.time.Instant;
 
 import com.example.homework.config.CircuitBreakerProperties;
 import com.example.homework.repository.NotificationRepository;

@@ -2,11 +2,11 @@ package com.example.homework.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import com.example.homework.model.NotificationType;
 
 import com.example.homework.config.RateLimitProperties;
 import com.example.homework.exception.RecipientBlockedException;
 import com.example.homework.exception.RecipientRateLimitedException;
+import com.example.homework.model.NotificationType;
 import com.example.homework.repository.BlacklistRepository;
 import com.example.homework.repository.NotificationRepository;
 import com.example.homework.util.TargetMasker;
