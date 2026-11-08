@@ -9,10 +9,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 import com.example.homework.dto.NotificationResponse;
-import com.example.homework.mapper.NotificationRowMapper;
 import com.example.homework.model.DeliveryOutcome;
 import com.example.homework.model.NotificationStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
@@ -20,13 +20,25 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class NotificationRepository {
 
+  private static final RowMapper<NotificationResponse> ROW_MAPPER = (rs, rowNum) ->
+      new NotificationResponse(
+          rs.getLong("id"),
+          rs.getString("tp"),
+          rs.getString("tgt"),
+          rs.getString("pld"),
+          NotificationStatus.fromCode(rs.getString("st")),
+          rs.getInt("fc"),
+          rs.getInt("dc"),
+          "Y".equals(rs.getString("bl")),
+          rs.getString("lm"),
+          rs.getTimestamp("crt").toInstant(),
+          rs.getTimestamp("upd").toInstant());
+
   private final JdbcTemplate jdbcTemplate;
-  private final NotificationRowMapper rowMapper;
   private final Clock clock;
 
-  public NotificationRepository(JdbcTemplate jdbcTemplate, NotificationRowMapper rowMapper, Clock clock) {
+  public NotificationRepository(JdbcTemplate jdbcTemplate, Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
-    this.rowMapper = rowMapper;
     this.clock = clock;
   }
 
@@ -114,14 +126,14 @@ public class NotificationRepository {
   }
 
   public NotificationResponse getLatestState() {
-    List<NotificationResponse> items = jdbcTemplate.query(
-        "select * from ntf_tx order by id desc limit 1",
-        rowMapper);
-    return items.isEmpty() ? null : items.get(0);
+    return jdbcTemplate.query("select * from ntf_tx order by id desc limit 1", ROW_MAPPER)
+        .stream()
+        .findFirst()
+        .orElse(null);
   }
 
   public Optional<NotificationResponse> findById(long id) {
-    return jdbcTemplate.query("select * from ntf_tx where id = ?", rowMapper, id).stream().findFirst();
+    return jdbcTemplate.query("select * from ntf_tx where id = ?", ROW_MAPPER, id).stream().findFirst();
   }
 
   /**
@@ -140,11 +152,11 @@ public class NotificationRepository {
   }
 
   public NotificationResponse getDispatchById(long id) {
-    return jdbcTemplate.queryForObject("select * from ntf_tx where id = ?", rowMapper, id);
+    return jdbcTemplate.queryForObject("select * from ntf_tx where id = ?", ROW_MAPPER, id);
   }
 
   public List<NotificationResponse> getHistory() {
-    return jdbcTemplate.query("select * from ntf_tx order by id desc limit 20", rowMapper);
+    return jdbcTemplate.query("select * from ntf_tx order by id desc limit 20", ROW_MAPPER);
   }
 
   private String shorten(String value) {

@@ -34,9 +34,9 @@ public class NotificationServiceIntegrationTest {
   void emailSuccessIsStoredAsSent() throws Exception {
     NotificationResponse response = service.processNotification("EMAIL", "buyer@example.com", "hello");
 
-    assertThat(response.getStatus()).isEqualTo(NotificationStatus.SENT);
-    assertThat(response.getDispatchCount()).isEqualTo(1);
-    assertThat(response.getFailureCount()).isZero();
+    assertThat(response.status()).isEqualTo(NotificationStatus.SENT);
+    assertThat(response.dispatchCount()).isEqualTo(1);
+    assertThat(response.failureCount()).isZero();
     assertThat(service.getHistory()).hasSize(1);
   }
 
@@ -53,9 +53,9 @@ public class NotificationServiceIntegrationTest {
     }
 
     NotificationResponse latest = service.getLatestState();
-    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
-    assertThat(latest.isBlocked()).isTrue();
-    assertThat(latest.getMessage()).isEqualTo("Recipient is blacklisted.");
+    assertThat(latest.status()).isEqualTo(NotificationStatus.REJECTED);
+    assertThat(latest.blocked()).isTrue();
+    assertThat(latest.message()).isEqualTo("Recipient is blacklisted.");
   }
 
   @Test
@@ -68,8 +68,8 @@ public class NotificationServiceIntegrationTest {
     }
 
     NotificationResponse latest = service.getLatestState();
-    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.UNKNOWN);
-    assertThat(latest.getMessage()).isEqualTo("Unsupported type: FAX");
+    assertThat(latest.status()).isEqualTo(NotificationStatus.UNKNOWN);
+    assertThat(latest.message()).isEqualTo("Unsupported type: FAX");
   }
 
   @Test
@@ -95,9 +95,9 @@ public class NotificationServiceIntegrationTest {
     }
 
     NotificationResponse latest = service.getLatestState();
-    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
-    assertThat(latest.getFailureCount()).isEqualTo(3);
-    assertThat(latest.getDispatchCount()).isEqualTo(4);
+    assertThat(latest.status()).isEqualTo(NotificationStatus.REJECTED);
+    assertThat(latest.failureCount()).isEqualTo(3);
+    assertThat(latest.dispatchCount()).isEqualTo(4);
   }
 
   @Test
@@ -108,7 +108,7 @@ public class NotificationServiceIntegrationTest {
 
     assertThatThrownBy(() -> service.processNotification("SMS", "busy@example.com", "hello"))
         .isInstanceOf(RecipientRateLimitedException.class);
-    assertThat(service.processNotification("SMS", "other@example.com", "hello").getStatus())
+    assertThat(service.processNotification("SMS", "other@example.com", "hello").status())
         .isEqualTo(NotificationStatus.SENT);
   }
 
@@ -128,7 +128,7 @@ public class NotificationServiceIntegrationTest {
       service.processNotification("PUSH", "Token-AbC", "hello");
     }
 
-    assertThat(service.processNotification("PUSH", "token-abc", "hello").getStatus())
+    assertThat(service.processNotification("PUSH", "token-abc", "hello").status())
         .isEqualTo(NotificationStatus.SENT);
     assertThatThrownBy(() -> service.processNotification("PUSH", "Token-AbC", "hello"))
         .isInstanceOf(RecipientRateLimitedException.class);
@@ -145,8 +145,8 @@ public class NotificationServiceIntegrationTest {
     }
 
     NotificationResponse latest = service.getLatestState();
-    assertThat(latest.getStatus()).isEqualTo(NotificationStatus.REJECTED);
-    assertThat(latest.isBlocked()).isTrue();
+    assertThat(latest.status()).isEqualTo(NotificationStatus.REJECTED);
+    assertThat(latest.blocked()).isTrue();
     assertThat(service.getHistory()).hasSize(8);
   }
 
@@ -165,8 +165,8 @@ public class NotificationServiceIntegrationTest {
       HashSet<Long> ids = new HashSet<>();
       for (Future<NotificationResponse> future : futures) {
         NotificationResponse response = future.get();
-        assertThat(response.getStatus()).isEqualTo(NotificationStatus.SENT);
-        ids.add(response.getId());
+        assertThat(response.status()).isEqualTo(NotificationStatus.SENT);
+        ids.add(response.id());
       }
       assertThat(ids).hasSize(requests);
     } finally {

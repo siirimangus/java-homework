@@ -27,7 +27,7 @@ public class NotificationController {
 
   @PostMapping("/send")
   public NotificationResponse send(@Valid @RequestBody NotificationRequest request) {
-    return service.processNotification(request.getType(), request.getTarget(), request.getPayload());
+    return service.processNotification(request.type(), request.target(), request.payload());
   }
 
   @PatchMapping("/{id}")

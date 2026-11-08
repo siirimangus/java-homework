@@ -114,7 +114,7 @@ public class NotificationService {
       NotificationResponse existing = repository.findById(id)
           .orElseThrow(() -> new NotificationNotFoundException("Notification " + id + " not found."));
       throw new NotificationNotUpdatableException(
-          "Notification " + id + " cannot be updated while its status is " + existing.getStatus() + ".");
+          "Notification " + id + " cannot be updated while its status is " + existing.status() + ".");
     }
 
     log.info("Notification {} updated", id);

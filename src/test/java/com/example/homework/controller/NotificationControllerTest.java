@@ -104,7 +104,7 @@ class NotificationControllerTest {
 
   @Test
   void updateChangesOnlyTheGivenFields() throws Exception {
-    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").getId();
+    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").id();
 
     update(id, "{\"payload\":\"corrected\"}")
         .andExpect(status().isOk())
@@ -127,7 +127,7 @@ class NotificationControllerTest {
   @Test
   void updateOfRejectedNotificationReturnsConflict() throws Exception {
     send("FAX", "ops@example.com").andExpect(status().isBadRequest());
-    long id = service.getLatestState().getId();
+    long id = service.getLatestState().id();
 
     update(id, "{\"payload\":\"x\"}")
         .andExpect(status().isConflict());
@@ -135,7 +135,7 @@ class NotificationControllerTest {
 
   @Test
   void updateWithoutChangesReturnsBadRequest() throws Exception {
-    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").getId();
+    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").id();
 
     update(id, "{}")
         .andExpect(status().isBadRequest());
@@ -143,7 +143,7 @@ class NotificationControllerTest {
 
   @Test
   void updateWithBlankTargetReturnsBadRequest() throws Exception {
-    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").getId();
+    long id = service.processNotification("EMAIL", "buyer@example.com", "hello").id();
 
     update(id, "{\"target\":\"   \"}")
         .andExpect(status().isBadRequest())

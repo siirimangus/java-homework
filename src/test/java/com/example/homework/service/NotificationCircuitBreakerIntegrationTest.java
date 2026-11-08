@@ -50,11 +50,11 @@ class NotificationCircuitBreakerIntegrationTest {
     clock.advance(COOLDOWN_PASSED);
 
     NotificationResponse trial = service.processNotification("SMS", "ok-user@example.com", "hello");
-    assertThat(trial.getStatus()).isEqualTo(NotificationStatus.SENT);
-    assertThat(trial.getFailureCount()).isZero();
+    assertThat(trial.status()).isEqualTo(NotificationStatus.SENT);
+    assertThat(trial.failureCount()).isZero();
 
     NotificationResponse next = service.processNotification("PUSH", "other-user@example.com", "hello");
-    assertThat(next.getStatus()).isEqualTo(NotificationStatus.SENT);
+    assertThat(next.status()).isEqualTo(NotificationStatus.SENT);
   }
 
   @Test
